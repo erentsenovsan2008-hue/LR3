@@ -1,195 +1,87 @@
 import numpy as np
-from typing import List, Dict
+from fractions import Fraction
 
-def create_pairwise_matrix(n: int, scale_values: List[List[int]]) -> np.ndarray:
 
-    matrix = np.eye(n)
-    
-    idx = 0
+def create_ahp_matrix(n):  # Создаётся матрица попарных сравнений для критериев
+    """Создание матрицы парных сравнений"""
+    matrix = np.zeros((n, n))
     for i in range(n):
-        for j in range(i+1, n):
-            matrix[i][j] = scale_values[idx]
-            matrix[j][i] = 1 / scale_values[idx]
-            idx += 1
-    
+        for j in range(i, n):
+            if i == j:
+                matrix[i][j] = 1  # На главной диагонали все значения равны 1
+            else:
+                value = round(float(Fraction(input(f"Сравнение критерия {i + 1} с {j + 1}: "))),
+                              3)  # Выше главной диагонали вводятся значения в виде: 1, 1/2, 3...; Значения в виде 1/2 переводятся в float и округляются до тысячных
+                matrix[i][j] = value
+                matrix[j][i] = round(1 / value,
+                                     3)  # Значения ниже главной диагонали являются обратными к значениям, симметричным относительно главной диагонали
     return matrix
 
 
-def normalize_matrix(matrix: np.ndarray) -> np.ndarray:
-
-    col_sums = np.sum(matrix, axis=0)
-    normalized = matrix / col_sums
-    return normalized
-
-
-def calculate_weights(matrix: np.ndarray) -> np.ndarray:
-  
-    normalized = normalize_matrix(matrix)
-    weights = np.mean(normalized, axis=1)
-    return weights
-
-
-def consistency_check(matrix: np.ndarray, weights: np.ndarray) -> Dict[str, float]:
-
-    n = len(matrix)
-    
-
-    Aw = matrix @ weights
-    lambda_max = np.mean(Aw / weights)
-    
-
-    CI = (lambda_max - n) / (n - 1)
-    
-
-    RI_table = {1: 0, 2: 0, 3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24, 
-                7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
-    RI = RI_table.get(n, 1.49)
-    
-
-    CR = CI / RI if RI > 0 else 0
-    
-    return {
-        'lambda_max': lambda_max,
-        'CI': CI,
-        'RI': RI,
-        'CR': CR,
-        'consistent': CR < 0.1
-    }
-
-
-def calculate_alternative_weights(criteria_weights: np.ndarray, 
-                                   alternatives_matrices: List[np.ndarray]) -> np.ndarray:
-
-    n_alternatives = len(alternatives_matrices[0])
-    n_criteria = len(criteria_weights)
-    
-
-    alt_weights_matrix = np.zeros((n_alternatives, n_criteria))
-    
-    for i, matrix in enumerate(alternatives_matrices):
-        alt_weights_matrix[:, i] = calculate_weights(matrix)
-    
-
-    final_weights = alt_weights_matrix @ criteria_weights
-    
-    return final_weights
-
-
-def input_pairwise_matrix_data(n: int, element_names: List[str], comparison_type: str) -> List[int]:
-
-    print(f"\n=== Сравнение {comparison_type} по шкале Саати ===")
-    print("Шкала: 1=равно, 3=немного лучше, 5=лучше, 7=значительно лучше, 9=принципиально лучше")
-    print("Промежуточные значения: 2, 4, 6, 8\n")
-    
-    values = []
+def create_ahp_matrix_alternative(
+        n):  # Создаётся матрица попарных сравнений для альтернатив (далее то же самое, что и в предыдущей фукнции)
+    """Создание матрицы парных сравнений"""
+    matrix = np.zeros((n, n))
     for i in range(n):
-        for j in range(i+1, n):
-            while True:
-                try:
-                    val = int(input(f"{element_names[i]} vs {element_names[j]} (1-9): "))
-                    if 1 <= val <= 9:
-                        values.append(val)
-                        break
-                    else:
-                        print("Значение должно быть от 1 до 9!")
-                except ValueError:
-                    print("Введите целое число!")
-    
-    return values
+        for j in range(i, n):
+            if i == j:
+                matrix[i][j] = 1
+            else:
+                value = round(float(Fraction(input(f"Сравнение альтернативы {i + 1} с {j + 1}: "))), 3)
+                matrix[i][j] = value
+                matrix[j][i] = round(1 / value, 3)
+    return matrix
 
 
-def main():
-
-    
-    print("=" * 60)
-    print("ВЫБОР УНИВЕРСИТЕТА МЕТОДОМ АНАЛИЗА ИЕРАРХИЙ (AHP)")
-    print("=" * 60)
-    
-
-    while True:
-        n_criteria = int(input("\nВведите количество критериев (минимум 5): "))
-        if n_criteria >= 5:
-            break
-        print("Критериев должно быть не менее 5!")
-    
-    while True:
-        n_alternatives = int(input("Введите количество альтернатив-университетов (минимум 3): "))
-        if n_alternatives >= 3:
-            break
-        print("Альтернатив должно быть не менее 3!")
-    
-   
-    print("\n--- Введите названия критериев ---")
-    criteria_names = [input(f"Критерий {i+1}: ") for i in range(n_criteria)]
-    
-    print("\n--- Введите названия университетов ---")
-    alternative_names = [input(f"Университет {i+1}: ") for i in range(n_alternatives)]
-    
- 
-    print(f"\n{'='*60}")
-    print("ШАГ 1: Сравнение критериев по важности для выбора университета")
-    print(f"{'='*60}")
-    
-    criteria_scale_values = input_pairwise_matrix_data(
-        n_criteria, criteria_names, "критериев"
-    )
-    
-    criteria_matrix = create_pairwise_matrix(n_criteria, criteria_scale_values)
-    criteria_weights = calculate_weights(criteria_matrix)
-    criteria_consistency = consistency_check(criteria_matrix, criteria_weights)
-    
-    print(f"\n✓ Веса критериев:")
-    for i, (name, weight) in enumerate(zip(criteria_names, criteria_weights)):
-        print(f"  {name}: {weight:.4f} ({weight*100:.2f}%)")
-    
-    print(f"\n✓ Проверка согласованности: CR = {criteria_consistency['CR']:.4f}")
-    if criteria_consistency['consistent']:
-        print("  → Матрица согласована (CR < 0.1) ✓")
-    else:
-        print("  ⚠ Внимание: матрица может быть несогласована (CR >= 0.1)")
-    
-
-    print(f"\n{'='*60}")
-    print("ШАГ 2: Сравнение университетов по каждому критерию")
-    print(f"{'='*60}")
-    
-    alternatives_matrices = []
-    
-    for crit_idx, crit_name in enumerate(criteria_names):
-        print(f"\n--- Критерий: {crit_name} ---")
-        alt_scale_values = input_pairwise_matrix_data(
-            n_alternatives, alternative_names, f"университетов по критерию '{crit_name}'"
-        )
-        
-        alt_matrix = create_pairwise_matrix(n_alternatives, alt_scale_values)
-        alternatives_matrices.append(alt_matrix)
-        
-
-        alt_weights = calculate_weights(alt_matrix)
-        alt_consistency = consistency_check(alt_matrix, alt_weights)
-        print(f"  CR = {alt_consistency['CR']:.4f} {'✓' if alt_consistency['consistent'] else '⚠'}")
-    
-
-    print(f"\n{'='*60}")
-    print("РЕЗУЛЬТАТ: Итоговые приоритеты университетов")
-    print(f"{'='*60}")
-    
-    final_weights = calculate_alternative_weights(criteria_weights, alternatives_matrices)
-    
-
-    sorted_indices = np.argsort(final_weights)[::-1]
-    
-    print(f"\n🏆 РЕЙТИНГ УНИВЕРСИТЕТОВ:")
-    for rank, idx in enumerate(sorted_indices, 1):
-        medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else ""
-        print(f"  {medal} {rank}. {alternative_names[idx]}: {final_weights[idx]:.4f} ({final_weights[idx]*100:.2f}%)")
-    
-
-    best_idx = sorted_indices[0]
-    print(f"\n💡 РЕКОМЕНДАЦИЯ: Наиболее подходящий университет — {alternative_names[best_idx]}")
-    
-    return final_weights, sorted_indices
+array_criterion = ['стоимость', 'репутация', 'местоположение', 'программы', 'трудоустройство']  # критерии для сравнения
+print('критерии:')
+for i in range(len(array_criterion)):
+    print(f'{i + 1}) {array_criterion[i]}')  # Выводятся критерии по номерам
+matrix_criterion = create_ahp_matrix(5)  # Создана матрица попарных сравнений критериев
+print(f'Матрица попарных сравнений для критериев:\n{matrix_criterion}')
+print()
 
 
-if __name__ == "__main__":
-    main()
+def weight_matrix(matrix):  # Вычисляется матрица веса (весовой столбец)
+    '''Вычисление весового столбца'''
+    normal_matrix = np.round(matrix / np.sum(matrix, axis=0), 3)  # Сначала нормализируется матрица попарных сравнений
+    print(f'Нормализация матрицы попарных сранений:\n{normal_matrix}')
+    weight_array = np.round(np.mean(normal_matrix, axis=1),
+                            4)  # И вычисялется среднее значение в каждой строке (итоговой столбец = весовой столбец)
+    print(f'Весовой столбец: {weight_array}')
+    return weight_array
+
+
+weight_array_criterion = weight_matrix(matrix_criterion)  # Весовой столбец выводится в виде 1 строки
+weight_matrix_criterion = np.array([weight_array_criterion]).reshape(-1,
+                                                                     1)  # Весовой столбец выводится в виде матрицы (1 столбец)
+
+matrix_alternatives_all = []  # Список, в к-ом будут храниться 5 матриц попарных сравнений альтернатив (каждая матрица по 1 из критериев)
+array_university = ['МАИ', 'МГУ', 'МФТИ']  # вузы для сравнения
+for crit in range(len(array_criterion)):  # Цикл для создания каждой из 5 матриц
+    print(f'критерий {crit + 1}) {array_criterion[crit]}')
+    print('ВУЗы:')
+    for i in range(len(array_university)):
+        print(f'{i + 1}) {array_university[i]}')  # Вывод каждого вуза по номерам
+    matrix_alternative = create_ahp_matrix_alternative(
+        len(array_university))  # Создаётся матрица попарных сравнений альтернатив
+    print(matrix_alternative)
+    matrix_alternatives_all.append(matrix_alternative)
+
+weight_alternatives = []  # Матрица для хранения весовых столбцов (в виде строк) для матриц попарных сравнений альтернатив
+for matrix in matrix_alternatives_all:  # Цикл перебирает матрицы попарных сравнений альтернатив
+    weight_array = weight_matrix(matrix)  # Весовой столбец (в виде строки) матрицы попарных сравнений альтернатив
+    weight_alternatives.append(weight_array)
+
+weight_matrix_alternatives = np.array(
+    weight_alternatives).T  # Транспонирование матрицы, содержащей весовые строки (чтобы получились весовые столбцы)
+print(weight_matrix_alternatives)
+
+print('Итоговая матрица веса альтернатив с точки зрения достижения цели (учёт критериев):')
+total_matrix = np.dot(weight_matrix_alternatives,
+                      weight_matrix_criterion)  # Умножение матрицы, содержащей весовые столбцы для матриц попарных сравнений альтернатив, на матрицу, содержащую весовой столбец для матрицы попарных сравнений критериев
+print(total_matrix)
+print()
+for i in range(len(total_matrix)):
+    print(
+        f'{array_university[i]}: {(total_matrix[i]) * 100}%')  # Выводятся значения каждой ячейки итоговой матрицы веса, соответсвующие ВУЗу, в виде: ВУЗ: ...%
